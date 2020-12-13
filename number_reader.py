@@ -42,11 +42,13 @@ class number_reader:
 
         self._svm = ml.SVM_load("svm_data.yaml")
 
-        self._kernel = np.matrix([[0, 0, 1, 0, 0],
-                                  [0, 0, 1, 0, 0],
-                                  [0, 0, 1, 0, 0],
-                                  [0, 0, 1, 0, 0],
-                                  [0, 0, 1, 0, 0]], np.uint8)
+        self._kernel_erode = np.matrix([[0, 0, 1, 0, 0],
+                                        [0, 0, 1, 0, 0],
+                                        [0, 0, 1, 0, 0],
+                                        [0, 0, 1, 0, 0],
+                                        [0, 0, 1, 0, 0]], np.uint8)
+
+        self._kernel_dilate = np.ones((5, 5), np.uint8)
 
     def _calculate_distances(self, symbols, median_ypos, median_width):
         """
@@ -76,11 +78,12 @@ class number_reader:
             Multiple numbers can be separated if their distance is bigger than the width of one digit
             No digits can be detected if they touch the border
         """
+
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
         ret, thresh = cv.threshold(gray, 0, 255, cv.THRESH_OTSU)
 
-        eroded = cv.erode(thresh, self._kernel)
+        eroded = cv.erode(thresh, self._kernel_erode)
 
         # ## Detect points
         # Detect decimal points from the aspect ratio. Due to the eroding before the points are now not round anymore but rather flat.
@@ -95,14 +98,17 @@ class number_reader:
                 x, y, w, h = cv.boundingRect(cnt)
                 area = cv.contourArea(cnt)
                 perimeter = cv.arcLength(cnt, True)
-                S = 4 * np.pi * area / perimeter**2
-                if w > h and x != 0 and y != 0:
-                    points.append(position(x, y, w, h))
-                    cv.rectangle(thresh, (x, y - 5),
-                                 (x+w, y+h + 5), (0, 0, 0), -1)
+                if perimeter != 0:
+                    S = 4 * np.pi * area / perimeter**2
+                    if w > h and x != 0 and y != 0:
+                        points.append(position(x, y, w, h))
+                        cv.rectangle(thresh, (x, y - 5),
+                                     (x+w, y+h + 5), (0, 0, 0), -1)
 
         blurred = cv.medianBlur(thresh, 3)
-        number_of_components, labels = cv.connectedComponents(blurred)
+        dilated = cv.dilate(blurred, self._kernel_dilate)
+
+        number_of_components, labels = cv.connectedComponents(dilated)
 
         component_imgs = []
         for component in range(1, number_of_components):
@@ -119,7 +125,7 @@ class number_reader:
                 cut = (componentImg[y - 1:y + h + 1,
                                     x - 1:x + w + 1]).astype(np.uint8)
 
-                component_imgs.append(symbol_data(cut, position(x, y, w, h)))
+                component_imgs.append(symbol_data(cut, position(x, y, w,  h)))
 
                 cv.rectangle(img, (x - 1, y - 1),
                              (x+w + 1, y+h + 1), (0, 255, 0), 2)
@@ -133,6 +139,8 @@ class number_reader:
                 for component in cut_components]
 
         # let the svm predict a value for every detected number
+        if len(hogs) == 0:
+            return (None, img)
         data = np.float32(hogs)
         result = self._svm.predict(data)
 
@@ -153,7 +161,7 @@ class number_reader:
         # Check every previously detected point. if it is near enough to the numbers it is a decimal point
         for point in points:
             # if the point is within half a number height around the bottom of the numbers it is a decimal point
-            if (point.y > (median_ypos + 0.75 * median_height)) and (point.y < (median_ypos + 1.25 * median_height)):
+            if (point.y > (median_ypos + 0.9 * median_height)) and (point.y < (median_ypos + 1.1 * median_height)):
                 symbols.append(symbol_data('.', point))
 
         # sort the list by the x position
@@ -173,7 +181,10 @@ class number_reader:
         # create a string from the symbols
         value = "".join(map(lambda sym: sym.data, symbols))
         # create numbers for every number in the string, split by a space
-        numbers = tuple([float(s) for s in value.split(" ")])
+        try:
+            numbers = tuple([float(s) for s in value.split(" ")])
+        except ValueError as e:
+            numbers = None
         return (numbers, img)
 
 
