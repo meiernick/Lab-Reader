@@ -17,10 +17,10 @@ cv.namedWindow(mainWindowName)
 cv.setMouseCallback(mainWindowName, lrw.onMouse)
 
 # cap = cv.VideoCapture(0)
-# cap = cv.VideoCapture(r'../Beispielmaterial/2020-10-12 12.49.37.mp4')
+cap = cv.VideoCapture(r'../Beispielmaterial/2020-10-12 12.49.37.mp4')
 # cap = cv.VideoCapture(r'../Beispielmaterial/2020-10-12 12.50.06.mp4')
 # cap = cv.VideoCapture(r'../Beispielmaterial/2020-10-12 12.51.40.mp4')
-cap = cv.VideoCapture(r'../Beispielmaterial/2020-10-12 12.52.14.mp4')
+# cap = cv.VideoCapture(r'../Beispielmaterial/2020-10-12 12.52.14.mp4')
 # cap = cv.VideoCapture(r'../Beispielmaterial/2020-10-12 12.52.41.mp4')
 # cap = cv.VideoCapture(r'../Beispielmaterial/2020-10-12 14.15.33.mp4')
 # cap = cv.VideoCapture(r'../Beispielmaterial/2020-10-12 14.15.54.mp4')
@@ -31,7 +31,7 @@ print('-\tyou can also drag the points if you like to adjust them')
 print('-\tright-click resets all points')
 print('')
 print('Exit with:                     ESC or Q')
-print('Read the Display with:         ENTER (works not yet, but still prints something)')
+print('Read the Display with:         ENTER')
 print('Delete the last saved Value:   BACKSPACE')
 print('')
 print('')
@@ -63,7 +63,13 @@ while(True):
     for i in range(10):
         warp = lrw.getWarp(frame, i)
         if not warp is None:
-            detectedValues[i], warp = nr.read_number_from_img(warp)
+            detectedValue, warp = nr.read_number_from_img(warp)
+            if detectedValue != None:
+                if (len(detectedValue) == 1):
+                    detectedValues[i] = detectedValue[0]
+                else:
+                    detectedValues[i] = detectedValue
+
             cv.imshow(str(i)+' '+warpWindowName, warp)
             cv.moveWindow(str(i)+' '+warpWindowName, warp_x, warp_y)
             warp_y += np.shape(warp)[0] + 35  # 35 Because the Titlebar
